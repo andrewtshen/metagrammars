@@ -1,3 +1,6 @@
 [submodule "SyGuS_Benchmarks"]
 	path = SyGuS_Benchmarks
 	url = https://github.com/polgreen/Sygus_benchmark_repo
+[submodule "benchmarks"]
+	path = benchmarks
+	url = git@github.com:SyGuS-Org/benchmarks.git
