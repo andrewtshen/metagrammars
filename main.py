@@ -184,15 +184,15 @@ class SyGuSProblem:
                 fn_name, fn_args, fn_ret = d[1], d[2], d[3]
                 # We wish to ignore the first 4 arguments in the function tuple:
                 # the define-fun, function name, args, return value
-                for r in SyGuSProblem.get_constants_helper(d[4:]):
-                    ret.add(r)
-                # If a function does not take arguments, treat as constant
-                if fn_args == []:
-                    ret.add(dumps(fn_name))
-                else:
-                    # If has arguments, remove them from the ret
-                    for args in fn_args:
-                        ret.discard(dumps(args[0]))
+                if fn_ret == self.synth_fun_ret_type[0]:
+                    for r in SyGuSProblem.get_constants_helper(d[4:]):
+                        ret.add(r)
+                # # TODO: See if this case should be included. If a function does not take arguments, treat as constant
+                # if fn_args == []:
+                #     ret.add(dumps(fn_name))
+                # If fn does have arguments, remove them from the ret since it is not a constant
+                for args in fn_args:
+                    ret.discard(dumps(args[0]))
         return list(ret)
 
     def get_return_type(self):
@@ -207,7 +207,10 @@ class SyGuSProblem:
                 # This is a function, ignore the first value (function call)
                 # print(d1[1:])
                 for r in SyGuSProblem.get_constants_helper(d1[1:]):
-                    ret.add(r)
+                    # See if value starts with #
+                    # print("DEBUG: ", r, r[0] == "\\" and len(r) >= 2 and r[0] == "\\" and r[1] == "#")
+                    if len(r) >= 2 and r[0] == "\\" and r[1] == "#":
+                        ret.add(r)
             else:
                 # This is just a constant
                 ret.add(dumps(d1))
@@ -384,8 +387,7 @@ class Metagrammar:
                     nonterminals_list.append([create_symbol(r.get_name() + str(i)), rule_type])
 
             # Use the rule to generate grammar for that non terminal.
-            for nt in r.generate_grammar(problem):
-                ret.append([nt])
+            ret.append(r.generate_grammar(problem))
 
         ret.insert(0, nonterminals_list)
         return ret
@@ -406,8 +408,6 @@ class Metagrammar:
         Return boolean value of if write succeeded.
         """
         g = self.generate_grammar_from_rules(problem)
-        # print(problem)
-        print(g)    
         data = export_sexp(problem.create_with_new_grammar(g))
         filename = dest_dir + problem_name
 
@@ -514,10 +514,12 @@ class Rule:
         ret = []
         for i in range(self.num_nonterminals):
             print(self.name + str(i))
+            # Each tmp is a nonterminal in the grammar
             tmp = [create_symbol(self.name + str(i)), self.nonterminal_type, []]
             for rule, is_active in zip(self.subrules, self.active_rules[i]):
                 if is_active:
                     for r in rule(p):
+                        # Index 2 corresponds to the production rules
                         tmp[2].append(r)
             ret.append(tmp)
         return ret
@@ -589,7 +591,8 @@ if __name__ == "__main__":
 
 
     m = Metagrammar()
-    m.add_rule(r1)
+    # TODO: Add in check for logic type to determine which nonterminals to use
+    # m.add_rule(r1)
     m.add_rule(r)
 
     # for a in r.generate_grammar(p):
