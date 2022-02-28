@@ -90,8 +90,8 @@ class Metagrammar:
         seed: int = 1,
     ) -> (int, int):
         """
-        Run benchmarks on a SyGuS problem and return the result (either a successful 
-        solve or a "timeout or fail") as well as the time to solve the problem.
+        Runs benchmarks on a SyGuS problem and return the result (either a successful 
+        solve or a "timeout or fail") as well as the time to solve the problem
         """
         # Construct shell command
         sh_cmd = ["cvc5"]
@@ -155,5 +155,5 @@ class Metagrammar:
                 num_unsat += 1
             else:
                 total_time_to_solve += int(time_to_solve)
-                
+
         return total_time_to_solve, num_unsat

@@ -1,6 +1,13 @@
 from sexpdata import loads, dumps, Symbol # Everything we need to read SyGuS files (.sl)
 
 
+"""
+==================================================================
+|Helper Functions for working with different s-expressions (sexp)|
+==================================================================
+"""
+
+
 def remove_sexp_comments(contents: list):
     """
     Remove all comments from contents of sexp.
