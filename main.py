@@ -4,6 +4,7 @@ import typing
 import re
 import subprocess
 import copy
+import random
 from pathlib import Path
 
 
@@ -195,8 +196,8 @@ class SyGuSProblem:
                     ret.discard(dumps(args[0]))
         return list(ret)
 
+
     def get_return_type(self):
-        print(self.synth_fun_ret_type)
         return self.synth_fun_ret_type[0]
 
 
@@ -207,15 +208,14 @@ class SyGuSProblem:
                 # This is a function, ignore the first value (function call)
                 # print(d1[1:])
                 for r in SyGuSProblem.get_constants_helper(d1[1:]):
-                    # See if value starts with #
-                    # print("DEBUG: ", r, r[0] == "\\" and len(r) >= 2 and r[0] == "\\" and r[1] == "#")
+                    # See if value starts with #, if so then it is a BV number
+                    # TODO: ensure that this works with numbers (ILA) as well
                     if len(r) >= 2 and r[0] == "\\" and r[1] == "#":
                         ret.add(r)
             else:
                 # This is just a constant
                 ret.add(dumps(d1))
         return ret
-
 
 
     def get_variables(self):
@@ -285,16 +285,6 @@ class SyGuSProblem:
         self.synth_fun_parameters = self.synth_fun_parameters[0]
         self.synth_fun_non_terminals = self.synth_fun_non_terminals[0]
         self.synth_fun_terminals = self.synth_fun_terminals[0]
-        # print("LOGIC:", self.logic)
-        # print("SYNTH_FUN:", self.synth_fun)
-        # print("synth_fun_name", self.synth_fun_name)
-        # print("synth_fun_parameters", self.synth_fun_parameters)
-        # print("synth_fun_ret_type", self.synth_fun_ret_type)
-        # print("synth_fun_terminals", self.synth_fun_terminals)
-        # print("synth_fun_non_terminals", self.synth_fun_non_terminals)
-        # print("DEFINE", self.defines_and_declares)
-        # print("CONSTRAINT", self.constraints)
-        # print("CHECK", self.check_synth)
 
 
     def write_sygus_problem(
@@ -345,7 +335,7 @@ class SyGuSProblem:
         compiled = re.compile(pattern)
         result = compiled.search(output)
         if not result:
-            result = "timeout"
+            result = "timeout or fail"
         else:
             result = result.group(1).strip()
 
@@ -418,52 +408,66 @@ class Metagrammar:
             f.write(data)
 
 
-    # def benchmark(
-    #     src_dir: str,
-    #     problem_name: str,
-    #     use_stats: bool = True,
-    #     timeout: int = 300,
-    #     seed: int = 1,
-    # ) -> list:
-    #     """
-    #     Run benchmarks on a SyGuS file and return as an array
-    #     """
-    #     # Construct shell command
-    #     sh_cmd = ["cvc5"]
-    #     if use_stats:
-    #         sh_cmd.append("--stats")
-    #     if timeout:
-    #         sh_cmd.append("--tlimit=" + str(timeout)) # Timeout in MS
-    #     if seed:
-    #         sh_cmd.append("--seed=" + str(seed))
-    #     sh_cmd.append(src_dir + problem_name)
+    def benchmark(
+        self,
+        src_dir: str,
+        problem_name: str,
+        use_stats: bool = True,
+        timeout: int = 300,
+        seed: int = 1,
+    ) -> list:
+        """
+        Run benchmarks on a SyGuS file and return as an array
+        """
+        # Construct shell command
+        sh_cmd = ["cvc5"]
+        if use_stats:
+            sh_cmd.append("--stats")
+        if timeout:
+            sh_cmd.append("--tlimit=" + str(timeout)) # Timeout in MS
+        if seed:
+            sh_cmd.append("--seed=" + str(seed))
+        sh_cmd.append(src_dir + problem_name)
 
-    #     # Run shell commmand
-    #     output = subprocess.run(sh_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-    #     output = output.stdout.strip("\n")
+        # Run shell commmand
+        output = subprocess.run(sh_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+        output = output.stdout.strip("\n")
 
-    #     # Check if unsat or not
-    #     pattern = "(define-fun .*)"
-    #     compiled = re.compile(pattern)
-    #     result = compiled.search(output)
-    #     if not result:
-    #         result = "timeout"
-    #     else:
-    #         result = result.group(1).strip()
+        # Check if unsat or not
+        pattern = "(define-fun .*)"
+        compiled = re.compile(pattern)
+        result = compiled.search(output)
+        if not result:
+            result = "timeout or fail"
+        else:
+            result = result.group(1).strip()
 
-    #     # Compute the total time of execution
-    #     pattern = "global::totalTime = (.*)ms"
-    #     compiled = re.compile(pattern)
-    #     ret = compiled.search(output)
-    #     time_to_solve = ret.group(1).strip()
+        # Compute the total time of execution
+        pattern = "global::totalTime = (.*)ms"
+        compiled = re.compile(pattern)
+        ret = compiled.search(output)
+        time_to_solve = ret.group(1).strip()
 
-    #     return result, time_to_solve
+        return result, time_to_solve
 
+
+    def score(self) -> int:
+        # Create parameters
+        p = SyGuSProblem("inv0.sl")
+        p.read_sygus_problem("benchmarks/lib/General_Track/bv-conditional-inverses/", "find_inv_bvsge_bvadd_4bit.sl")
+
+        self.write_problem_with_grammar(p, "results/", "test.sl")
+        result, time_to_solve = self.benchmark("results/", "test.sl")
+        if result == "timeout or fail":
+            # TODO: Play around with this value
+            return 600
+        else:
+            return int(time_to_solve)
 
 
 class Rule:
 
-    def __init__(self, name: str, nonterminal_type):
+    def __init__(self, name: str, nonterminal_type, base_subrule):
         # Subrules for this specific nonterminal
         self.subrules = []
 
@@ -488,6 +492,10 @@ class Rule:
         # Whether a new rule is active by default
         self.active_default = True
 
+        # A subrule that is always in the generated grammar
+        # TODO: See if there is anything we can do about removing the nonterminal entirely
+        self.base_subrule = base_subrule
+
 
     def add_subrule(self, subrule, is_active: bool = True):
         self.subrules.append(subrule)
@@ -499,23 +507,41 @@ class Rule:
         self.num_rules += 1
 
 
-    def to_string_format(self) -> str:
+    def to_string(self) -> str:
         ret = ""
-        for i in str(self.num_nonterminals):
-            for r in self.active_rules:
-                if r:
+        for i in range(self.num_nonterminals):
+            for is_active in self.active_rules[i]:
+                if is_active:
                     ret += "1"
                 else:
                     ret += "0"
         return ret
 
 
+    def get_length(self) -> int:
+        return self.num_nonterminals * self.num_rules
+
+
+    def from_string(self, active_string: str):
+        assert self.get_length() == len(active_string), "String incorrect length"
+        for i in range(self.num_nonterminals):
+            for j in range(self.num_rules):
+                if active_string[i * self.num_rules + j] == "1":
+                    self.active_rules[i][j] = 1
+                else:
+                    self.active_rules[i][j] = 0
+
+
+
+
     def generate_grammar(self, p: SyGuSProblem):
         ret = []
         for i in range(self.num_nonterminals):
-            print(self.name + str(i))
             # Each tmp is a nonterminal in the grammar
             tmp = [create_symbol(self.name + str(i)), self.nonterminal_type, []]
+            # Include base rule
+            tmp[2].append(self.base_subrule(p))
+            
             for rule, is_active in zip(self.subrules, self.active_rules[i]):
                 if is_active:
                     for r in rule(p):
@@ -544,19 +570,24 @@ class Rule:
 if __name__ == "__main__":
     print("> Starting Program.")
 
-    # Create parameters
-    p = SyGuSProblem("inv0.sl")
-    p.read_sygus_problem("benchmarks/lib/General_Track/bv-conditional-inverses/", "find_inv_bvsge_bvadd_4bit.sl")
-    print(p)
-    print("Constants:", p.get_constants())
-    print("Variables:", p.get_variables())
+    # # Create parameters
+    # p = SyGuSProblem("inv0.sl")
+    # p.read_sygus_problem("benchmarks/lib/General_Track/bv-conditional-inverses/", "find_inv_bvsge_bvadd_4bit.sl")
+    # print(p)
 
     # Change to BitVec of all types
-    r = Rule("BitVec", [create_symbol("_"), create_symbol("BitVec"), 4])
+    r = Rule("BitVec", [create_symbol("_"), create_symbol("BitVec"), 4], lambda x: create_symbol("#x0"))
     r.add_subrule(lambda x: [create_symbol("BitVec0")])
     r.add_subrule(lambda x: [create_symbol("BitVec1")])
     r.add_subrule(lambda x: [create_symbol("BitVec2")])
-    combinations = [
+
+    combinations1 = [
+        [Symbol("BitVec0"),
+         Symbol("BitVec1"),
+         Symbol("BitVec2")]
+    ]
+
+    combinations2 = [
         [Symbol("BitVec0"), Symbol("BitVec0")],
         [Symbol("BitVec0"), Symbol("BitVec1")],
         [Symbol("BitVec0"), Symbol("BitVec2")],
@@ -567,60 +598,72 @@ if __name__ == "__main__":
         [Symbol("BitVec2"), Symbol("BitVec1")],
         [Symbol("BitVec2"), Symbol("BitVec2")]
     ]
-    for a, b in combinations:
+    for a in combinations1:
         r.add_subrule(lambda x: [[Symbol("bvneg"), a]])
-        # r.add_rule(lambda x: [[Symbol("bvnot"), a, b]])
-        # r.add_rule(lambda x: [[Symbol("bvadd"), a, b]])
-        # r.add_rule(lambda x: [[Symbol("bvsub"), a, b]])
-        # r.add_rule(lambda x: [[Symbol("bvand"), a, b]])
-        # r.add_rule(lambda x: [[Symbol("bvadd"), a, b]])
-        # r.add_rule(lambda x: [[Symbol("bvshlr"), a, b]])
-        # r.add_rule(lambda x: [[Symbol("bvor"), a, b]])
-        # r.add_rule(lambda x: [[Symbol("bvshl"), a, b]])
+        r.add_subrule(lambda x: [[Symbol("bvnot"), a]])
+
+    for a, b in combinations2:
+        r.add_subrule(lambda x: [[Symbol("bvadd"), a, b]])
+        r.add_subrule(lambda x: [[Symbol("bvsub"), a, b]])
+        r.add_subrule(lambda x: [[Symbol("bvand"), a, b]])
+        r.add_subrule(lambda x: [[Symbol("bvadd"), a, b]])
+        r.add_subrule(lambda x: [[Symbol("bvlshr"), a, b]])
+        r.add_subrule(lambda x: [[Symbol("bvor"), a, b]])
+        r.add_subrule(lambda x: [[Symbol("bvshl"), a, b]])
+
+
     r.add_subrule(lambda x: [create_symbol(c) for c in x.get_constants()])
     r.add_subrule(lambda x: [create_symbol(v) for v in x.get_variables()])
-    # print(r.to_string_format())
-    # print(r.generate_grammar(p))
 
-    r1 = Rule("Int", create_symbol("Int"))
-    r1.add_subrule(lambda x: [create_symbol("Int0")])
-    r1.add_subrule(lambda x: [create_symbol("Int1")])
-    r1.add_subrule(lambda x: [create_symbol("Int2")])
-    r1.add_subrule(lambda x: [create_symbol(c) for c in x.get_constants()])
-    r1.add_subrule(lambda x: [create_symbol(v) for v in x.get_variables()])
-
+    # Set up
+    best_str = "0" * 210
+    best_score = 600
+    r.from_string(best_str)
 
     m = Metagrammar()
-    # TODO: Add in check for logic type to determine which nonterminals to use
-    # m.add_rule(r1)
     m.add_rule(r)
 
-    # for a in r.generate_grammar(p):
-    #     print(a)
+    print(r.to_string())
+    for i in range(500):
+        print("Iteration: ", i)
+        # Try randomly swapping value, if better or equal score, then keep
+        idx = random.randint(0, r.get_length()-1)
+        if best_str[idx] == "0":
+            test_str = best_str[:idx] + "1" + best_str[idx+1:]
+        else:
+            test_str = best_str[:idx] + "0" + best_str[idx+1:]
+        print(best_str, idx)
+        # TODO: We will need to rewrite all of the nonterminals if there are multiple
+        r.from_string(test_str)
+        # curr_str = "1" * 210
+        print("SCORE:", m.score())
+        new_score = m.score()
+        if new_score <= best_score:
+            best_str = test_str
+            best_score = new_score
+        # r.from_string(test_str)
+        
+    print("BEST: ", best_str, best_score, m.score())
 
-    m.write_problem_with_grammar(p, "results/", "test.sl")
+    # test = ""
+    # for i in range(210):
+    #     test += str(random.randint(0, 1))
+    # print(test)
+    # r.from_string(test)
 
-    # # Try getting output from metagrammar
-    # m = Metagrammar()
-    # generated_terminals, generated_non_terminals = m.apply(p)[0], m.apply(p)[1]
-    # print("GENERATED TERMINALS: ", generated_terminals)
-    # print("GENERATED NON TERMINALS: ", generated_non_terminals)
 
-    # p.write_sygus_problem("results/", "test.sl")
     
-    # Test Different Grammars using 1 Dropout
-    # print("TERMINALS: ", p.synth_fun_terminals)
-    # print("NON TERMINALS: ", p.synth_fun_non_terminals)
-    # prod_rules = p.synth_fun_non_terminals[0][2]
-    # for i in range(len(prod_rules)):
-    #     new_rule = prod_rules[:i] + prod_rules[i+1:]
-    #     print("Dropping out: ", i, " | New rule: ", new_rule)
-    #     # Put new rule into copy
-    #     p1 = copy.deepcopy(p)
-    #     p1.set_prod_rules(new_rule)
-    #     p1.write_sygus_problem("results/", "test.sl")
-    #     result, time_to_solve = p1.benchmark_problem("results/", "test.sl")
-    #     print("Result: ", result, " | Time to Solve: ", time_to_solve, "\n")
+
+    print("SCORE: ", m.score())
+
+    # TODO: Add in check for logic type to determine which nonterminals to use
+    # r1 = Rule("Int", create_symbol("Int"))
+    # r1.add_subrule(lambda x: [create_symbol("Int0")])
+    # r1.add_subrule(lambda x: [create_symbol("Int1")])
+    # r1.add_subrule(lambda x: [create_symbol("Int2")])
+    # r1.add_subrule(lambda x: [create_symbol(c) for c in x.get_constants()])
+    # r1.add_subrule(lambda x: [create_symbol(v) for v in x.get_variables()])
+
 
     print("> Ending Program.")
 
