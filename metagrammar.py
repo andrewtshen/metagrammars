@@ -129,7 +129,7 @@ class Metagrammar:
         self, 
         problem_dir: str, 
         problems: list
-    ) -> (int, int):
+    ) -> (int, int, int):
         """
         The score function receives a path to the problem directory as well as list
         of problems to score. Then, the scoring function applies the metagrammar to
@@ -140,7 +140,8 @@ class Metagrammar:
         """
 
         total_time_to_solve = 0
-        num_unsat = 0
+        num_unsolved = 0
+        num_solved = 0
         # For each of the problems, write the problem with the new grammar to "results/test.sl"
         # then apply the benchmark function to retrieve the time to solve/whether it is solvable
         for fname in problems:
@@ -152,8 +153,39 @@ class Metagrammar:
             if result == "timeout or fail":
                 # TODO: Can change this value to a more fitting penalty.
                 total_time_to_solve += 600
-                num_unsat += 1
+                num_unsolved += 1
             else:
                 total_time_to_solve += int(time_to_solve)
+                num_solved += 1
 
-        return total_time_to_solve, num_unsat
+        return total_time_to_solve, num_unsolved, num_solved
+
+
+    def base_score(
+        self, 
+        problem_dir: str, 
+        problems: list
+    ) -> (int, int, int):
+        """
+        The base_score function computes the score that the SyGuS problems would receive if
+        they were run AS-IS with no metagrammar applied to the problem. This performanced
+        depends on who wrote the test and how good that original grammar is.
+        """
+
+        total_time_to_solve = 0
+        num_unsolved = 0
+        num_solved = 0
+        # For each of the problems, write the problem with the new grammar to "results/test.sl"
+        # then apply the benchmark function to retrieve the time to solve/whether it is solvable
+        for fname in problems:
+            result, time_to_solve = self.benchmark(problem_dir, fname)
+
+            if result == "timeout or fail":
+                # TODO: Can change this value to a more fitting penalty.
+                total_time_to_solve += 600
+                num_unsolved += 1
+            else:
+                total_time_to_solve += int(time_to_solve)
+                num_solved += 1
+
+        return total_time_to_solve, num_unsolved, num_solved

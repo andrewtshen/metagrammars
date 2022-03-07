@@ -23,6 +23,7 @@ Things to do:
 
 if __name__ == "__main__":
     print("> Starting Program.")
+    random.seed(100)
 
     # # Create parameters
     # p = SyGuSProblem("inv0.sl")
@@ -69,9 +70,11 @@ if __name__ == "__main__":
     r.add_subrule(lambda x: [create_symbol(c) for c in x.get_constants()])
     r.add_subrule(lambda x: [create_symbol(v) for v in x.get_variables()])
 
-    # Set up
-    best_str = "1" * 210
+    # Set up metagrammar and add the generated bitvector rules
+    best_str = "0" * 210
     best_score = float("inf")
+    best_unsolved = float("inf")
+    best_solved = 0
     r.from_string(best_str)
 
     m = Metagrammar()
@@ -81,34 +84,41 @@ if __name__ == "__main__":
     # Get all problem files from the directory of problems.
     problem_dir = "benchmarks/lib/General_Track/bv-conditional-inverses/"
     all_problems = [f for f in listdir(problem_dir) if isfile(join(problem_dir, f))]
-    print("Total Number of Test Files: ", len(all_problems))
 
     random.shuffle(all_problems)
-    test_problems, train_problems = all_problems[:len(all_problems)//2], all_problems[len(all_problems)//2:]
+    train_problems, test_problems = all_problems[:len(all_problems)//3], all_problems[len(all_problems)//3:]
     assert(len(test_problems) + len(train_problems) == len(all_problems))
 
+    print("Total Number of Test Files: ", len(all_problems))
+    print("Base Case (All): ", m.base_score(problem_dir, all_problems))
+    print("Base Case (Test): ", m.base_score(problem_dir, test_problems))
+    print("Base Case (Train): ", m.base_score(problem_dir, train_problems))
+
+
     print("[DEBUG] Base String: ", r.to_string())
-    for i in range(500):
+    for i in range(100):
         print("Iteration: ", i)
-        # Try randomly swapping value, if better or equal score, then keep
-        test_str = best_str
-        for i in range(10):
-            idx = random.randint(0, r.get_length()-1)
-            if best_str[idx] == "0":
-                test_str = test_str[:idx] + "1" + test_str[idx+1:]
-            else:
-                test_str = test_str[:idx] + "0" + test_str[idx+1:]
-
         # TODO: We will need to rewrite all of the nonterminals if there are multiple
-        r.from_string(test_str)
-        new_score, num_unsat = m.score(problem_dir, train_problems)
+        # Try randomly swapping value, if better or equal score, then keep
+        for i in range(5):
+            idxi = random.randint(0, r.get_num_nonterminals()-1)
+            idxj = random.randint(0, r.get_num_subrules()-1)
+            # TODO: For now we just flip the active status
+            r.set_active_rule(idxi, idxj, not r.get_active_rule(idxi, idxj))
+    
+        new_score, num_unsolved, num_solved = m.score(problem_dir, train_problems)
         print("[DEBUG] Current String: ", r.to_string())
-        print("[DEBUG] Best Score: ", best_score, " | New Score: ", new_score, " | Number Unsat: ", num_unsat)
-        if new_score <= best_score:
-            best_str = test_str
+        print("[DEBUG] Best Score: ", best_score, " | Best Unsolved: ", best_unsolved, " | Best Solved: ", best_solved, 
+            " | New Score: ", new_score, " | Number Unsolved: ", num_unsolved, "| Number Solved:", num_solved)
+        if new_score <= best_score and num_unsolved <= best_unsolved:
+            best_str = r.to_string()
             best_score = new_score
+            best_unsolved = num_unsolved
+            best_solved = num_solved
+            print("[DEBUG]: Updated!")
 
-    print("[DEBUG] Best String: ", best_str, ", | Best String: ", best_str, " | Best Score", best_score)
+    print("[DEBUG] Best String: ", best_str, " | Best Score:", best_score)
+    print("[DEBUG] Best Num Unsolved: ", num_unsolved, " | Best Score:", num_solved)
     print("[DEBUG] Score on Test Set: ", m.score(problem_dir, test_problems))
 
     # test = ""

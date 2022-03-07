@@ -1,3 +1,4 @@
+import numpy as np
 from sygusproblem import SyGuSProblem
 from sexp_utils import *
 
@@ -47,7 +48,7 @@ class Rule:
         self.name = name
 
         # Number of subrules
-        self.num_rules = 0
+        self.num_subrules = 0
 
         # Type of nonterminal
         self.nonterminal_type = nonterminal_type
@@ -74,12 +75,12 @@ class Rule:
         for i in range(self.num_nonterminals):
             self.active_rules[i].append(is_active)
 
-        self.num_rules += 1
+        self.num_subrules += 1
 
 
     def to_string(self) -> str:
         """
-        Converts the corresponding active matrix to string format for easy print
+        Converts the corresponding active_rules to string format for easy print
         """
         ret = ""
         for i in range(self.num_nonterminals):
@@ -96,15 +97,28 @@ class Rule:
         active_string: str
     ):
         """
-        Updates the corresponding active matrix based on active_string
+        Updates the corresponding active_rules based on active_string. Only use when
+        initially loading the active_rules matrix
         """
         assert self.get_length() == len(active_string), "String incorrect length"
         for i in range(self.num_nonterminals):
-            for j in range(self.num_rules):
-                if active_string[i * self.num_rules + j] == "1":
+            for j in range(self.num_subrules):
+                if active_string[i * self.num_subrules + j] == "1":
                     self.active_rules[i][j] = 1
                 else:
                     self.active_rules[i][j] = 0
+
+
+    def set_active_rule(self, 
+        i: int, 
+        j: int, 
+        new_value: bool
+    ):
+        """
+        Updates active_rules at i, j with new_value
+        """
+        assert 0 <= i and i < self.num_nonterminals and 0 <= j and j < self.num_subrules, "Out of bounds"
+        self.active_rules[i][j] = new_value
 
 
     def generate_grammar(
@@ -136,20 +150,34 @@ class Rule:
     =============
     """
 
+    def get_active_rule(self, i, j) -> bool:
+        """
+        Returns whether specific subrule + nonterminal variant is active
+        """
+        assert 0 <= i and i < self.num_nonterminals and 0 <= j and j < self.num_subrules, "Out of bounds"
+        return self.active_rules[i][j]
+
+
+    def get_active_rules(self):
+        """
+        Returns active_rules matrix
+        """
+        return self.active_rules
+
 
     def get_length(self) -> int:
         """
         Gets the number of possible rules to be included. Alternatively, gets the 
         size of the matrix
         """
-        return self.num_nonterminals * self.num_rules
+        return self.num_nonterminals * self.num_subrules
 
 
-    def get_num_rules(self):
+    def get_num_subrules(self):
         """
         Gets the number of rules
         """
-        return self.num_rules
+        return self.num_subrules
 
 
     def get_name(self):
