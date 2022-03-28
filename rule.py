@@ -109,6 +109,16 @@ class Rule:
                     self.active_rules[i][j] = 0
 
 
+    def set_active_rules(self, 
+        new_rules: list
+    ):
+        """
+        Updates active_rules at i, j with new_value
+        """
+        assert len(new_rules) == len(self.active_rules) and len(new_rules[0]) == len(self.active_rules[0])
+        self.active_rules = new_rules
+
+
     def set_active_rule(self, 
         i: int, 
         j: int, 
