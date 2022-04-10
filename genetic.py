@@ -43,12 +43,15 @@ def print_pool(pool):
 def mutate(ind1, ind2):
     new_ind = []
     for i in range(len(ind1)):
-        new_ind.append(random.choices([ind1[i][j], ind2[i][j], True, False], weights=[4, 4, 1, 1], k = len(ind1[0])))
+        new_ind.append([])
+        for j in range(len(ind1[0])):
+            new_ind[i] += random.choices([ind1[i][j], ind2[i][j], True, False], weights=[4, 4, 1, 1])
+
     return new_ind
 
 if __name__ == "__main__":
     print("> Starting Program.")
-    random.seed(100)
+    random.seed(1)
 
     # # Create parameters
     # p = SyGuSProblem("inv0.sl")
@@ -111,7 +114,7 @@ if __name__ == "__main__":
     all_problems = [f for f in listdir(problem_dir) if isfile(join(problem_dir, f))]
 
     random.shuffle(all_problems)
-    train_problems, test_problems = all_problems[:len(all_problems)//3], all_problems[len(all_problems)//3:]
+    train_problems, test_problems = all_problems[:len(all_problems)//2], all_problems[len(all_problems)//2:]
     assert(len(test_problems) + len(train_problems) == len(all_problems))
 
     # print("Total Number of Test Files: ", len(all_problems))
@@ -129,12 +132,8 @@ if __name__ == "__main__":
     pool.sort(reverse=False, key=lambda x: x[1])
     print_pool(pool)
 
-    # print(pool[0])
-    # r.set_active_rules(pool[0])
-    # new_score, num_unsolved, num_solved = m.score(problem_dir, train_problems)
-
-    # for epoch in range(NUM_EPOCHS):
-    for epoch in range(1):
+    for epoch in range(NUM_EPOCHS):
+    # for epoch in range(1):
         print("EPOCH: ", epoch)
         # At each epoch, take each combination and add to new pool
 

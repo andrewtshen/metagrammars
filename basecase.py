@@ -11,13 +11,7 @@ from rule import Rule
 
 
 """
-Things to do:
-1. Create a function that can parse a SyGuS problem (.sl file)
-2. Create a function that can replace a grammar using metagrammar rules
-3. Create a function that can write back a modified SyGuS benchmark
-4. Create a script to run solver on specific file
-5. ???
-6. Profit
+The base case runs each SyGuS problem with their own 
 """
 
 
